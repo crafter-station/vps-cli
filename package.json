@@ -1,0 +1,29 @@
+{
+	"name": "@crafter/vps-cli",
+	"version": "0.1.0",
+	"description": "CLI to manage a Dokploy-powered VPS",
+	"module": "bin/vps.ts",
+	"type": "module",
+	"license": "MIT",
+	"bin": {
+		"vps": "bin/vps.ts"
+	},
+	"scripts": {
+		"dev": "bun run bin/vps.ts",
+		"check": "bunx biome check .",
+		"typecheck": "bunx tsc --noEmit"
+	},
+	"dependencies": {
+		"@clack/prompts": "^1.1.0",
+		"commander": "^14.0.0",
+		"picocolors": "^1.1.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.0",
+		"@types/bun": "latest",
+		"typescript": "^5.6.0"
+	},
+	"engines": {
+		"bun": ">=1.2.0"
+	}
+}
