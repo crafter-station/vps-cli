@@ -75,7 +75,7 @@ export async function dokployGet<T = unknown>(
 
 /** Collect all external ports already in use by any database service. */
 export async function getUsedPorts(): Promise<Set<number>> {
-	const DB_TYPES = ["postgres", "mysql", "redis", "mongo", "mariadb"] as const;
+	const DB_TYPES = ["postgres", "mysql", "redis", "mongo", "mariadb", "libsql"] as const;
 
 	const results = await Promise.all(
 		DB_TYPES.map((t) =>

@@ -13,6 +13,7 @@ import { registerRedis } from "../src/commands/redis.ts";
 import { registerMongo } from "../src/commands/mongo.ts";
 import { registerMySQL } from "../src/commands/mysql.ts";
 import { registerMariaDB } from "../src/commands/mariadb.ts";
+import { registerLibSQL } from "../src/commands/libsql.ts";
 
 const program = new Command();
 
@@ -36,6 +37,7 @@ registerRedis(program);
 registerMongo(program);
 registerMySQL(program);
 registerMariaDB(program);
+registerLibSQL(program);
 
 // Default action: show help
 program.action(() => {
