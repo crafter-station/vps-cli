@@ -8,6 +8,7 @@ import { registerConfig } from "../src/commands/config.ts";
 import { registerStatus } from "../src/commands/status.ts";
 import { registerProject } from "../src/commands/project.ts";
 import { registerApp } from "../src/commands/app.ts";
+import { registerPostgres } from "../src/commands/postgres.ts";
 
 const program = new Command();
 
@@ -26,6 +27,7 @@ registerConfig(program);
 registerStatus(program);
 registerProject(program);
 registerApp(program);
+registerPostgres(program);
 
 // Default action: show help
 program.action(() => {

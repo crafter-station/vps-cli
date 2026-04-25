@@ -72,3 +72,48 @@ export async function dokployGet<T = unknown>(
 	const resp = await dokployFetch<T>(`${path}${query}`, { method: "GET" });
 	return resp.data;
 }
+
+/** Collect all external ports already in use by any database service. */
+export async function getUsedPorts(): Promise<Set<number>> {
+	const DB_TYPES = ["postgres", "mysql", "redis", "mongo", "mariadb"] as const;
+
+	const results = await Promise.all(
+		DB_TYPES.map((t) =>
+			dokployGet<{ items: { [k: string]: any }[] }>(`${t}.search`, { limit: "100" })
+				.then((r) => (r?.items ?? []).map((i) => i[`${t}Id`] as string))
+				.catch(() => [] as string[]),
+		),
+	);
+
+	const fetches: Promise<number | null>[] = [];
+	for (let i = 0; i < DB_TYPES.length; i++) {
+		const type = DB_TYPES[i]!;
+		const idKey = `${type}Id`;
+		for (const id of results[i]!) {
+			fetches.push(
+				dokployGet<any>(`${type}.one`, { [idKey]: id })
+					.then((d) => (d?.externalPort as number) ?? null)
+					.catch(() => null),
+			);
+		}
+	}
+
+	const ports = await Promise.all(fetches);
+	return new Set(ports.filter((p): p is number => p !== null && p > 0));
+}
+
+const PORT_MIN = 5433;
+const PORT_MAX = 5999;
+
+/** Pick a random port in 5433-5999 that is not already used by any DB. */
+export async function findAvailablePort(): Promise<number> {
+	const used = await getUsedPorts();
+	const available: number[] = [];
+	for (let p = PORT_MIN; p <= PORT_MAX; p++) {
+		if (!used.has(p)) available.push(p);
+	}
+	if (available.length === 0) {
+		throw new AppError("NO_PORT", { human: "No available ports in range 5433-5999." });
+	}
+	return available[Math.floor(Math.random() * available.length)]!;
+}
