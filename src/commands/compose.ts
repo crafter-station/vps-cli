@@ -125,6 +125,29 @@ export function registerCompose(program: Command): void {
 			});
 		});
 
+	// vps compose services <id>
+	cmd
+		.command("services <composeId>")
+		.description("List service names defined in a compose stack")
+		.action(async function (this: Command, composeId: string) {
+			const flags = parseGlobalFlags(this.optsWithGlobals());
+			const data = await dokployGet<string[]>("compose.loadServices", { composeId });
+			const services = (data ?? []).map((name: string) => ({ name }));
+
+			emit(services, flags, () => {
+				ui.header("Compose Services");
+				if (services.length === 0) {
+					ui.kv("Services", "none — deploy the compose stack first");
+					process.stdout.write("\n");
+					return;
+				}
+				for (const s of services) {
+					process.stdout.write(`  ${s.name}\n`);
+				}
+				process.stdout.write("\n");
+			});
+		});
+
 	// vps compose remove <id>
 	cmd
 		.command("remove <composeId>")

@@ -16,6 +16,7 @@ import { registerMariaDB } from "../src/commands/mariadb.ts";
 import { registerLibSQL } from "../src/commands/libsql.ts";
 import { registerGitHub } from "../src/commands/github.ts";
 import { registerCompose } from "../src/commands/compose.ts";
+import { registerDomain } from "../src/commands/domain.ts";
 
 const program = new Command();
 
@@ -42,6 +43,7 @@ registerMariaDB(program);
 registerLibSQL(program);
 registerGitHub(program);
 registerCompose(program);
+registerDomain(program);
 
 // Default action: show help
 program.action(() => {

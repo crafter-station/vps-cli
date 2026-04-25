@@ -47,6 +47,30 @@ vps app stop <appId> --json
 vps app remove <appId> -y --json
 ```
 
+### Domains
+
+```bash
+# List domains for an app or compose
+vps domain list --app <appId> --json
+vps domain list --compose <composeId> --json
+
+# Add a domain to an app (HTTPS + Let's Encrypt by default)
+vps domain add <host> --app <appId> --json
+vps domain add <host> --app <appId> --port 3000 --json
+
+# Add a domain to a compose service (auto-detects service if only one exists)
+vps domain add <host> --compose <composeId> --port 3000 --json
+vps domain add <host> --compose <composeId> --service <serviceName> --port 3000 --json
+
+# Add with options
+vps domain add <host> --app <appId> --no-https --cert none --json
+vps domain add <host> --app <appId> --path /api --strip-path --port 8080 --json
+
+# Info and remove
+vps domain info <domainId> --json
+vps domain remove <domainId> -y --json
+```
+
 ### Compose (docker-compose stacks)
 
 ```bash
@@ -60,7 +84,10 @@ vps compose env <composeId> --set "KEY=value
 KEY2=value2" --json
 vps compose remove <composeId> -y --json
 vps compose remove <composeId> -y --delete-volumes --json
+vps compose services <composeId> --json       # list service names in the compose
 ```
+
+When adding domains to compose stacks, use `compose services` first to discover valid service names. The `domain add` command auto-detects the service if only one exists.
 
 ### GitHub (deploy repos)
 
@@ -240,4 +267,4 @@ echo "$DB" | jq -r '.connectionUrl'
 - Port range is 5433-5999. The CLI checks all existing databases to avoid collisions.
 - IDs that start with `-` need `--` before them: `vps pg remove -y --json -- -6bMBz...`
 - `--json` output goes to stdout, progress logs go to stderr.
-- Domains must be configured via the Dokploy dashboard or API (`domain.create`). The CLI does not yet have a `vps domain` command.
+- Domains default to HTTPS with Let's Encrypt. Use `--no-https --cert none` for plain HTTP.
