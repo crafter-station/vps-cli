@@ -9,6 +9,7 @@ import { registerStatus } from "../src/commands/status.ts";
 import { registerProject } from "../src/commands/project.ts";
 import { registerApp } from "../src/commands/app.ts";
 import { registerPostgres } from "../src/commands/postgres.ts";
+import { registerRedis } from "../src/commands/redis.ts";
 
 const program = new Command();
 
@@ -28,6 +29,7 @@ registerStatus(program);
 registerProject(program);
 registerApp(program);
 registerPostgres(program);
+registerRedis(program);
 
 // Default action: show help
 program.action(() => {
