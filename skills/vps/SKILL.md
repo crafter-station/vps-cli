@@ -1,6 +1,6 @@
 ---
 name: vps
-description: CLI to manage a Dokploy-powered VPS.
+description: Manage a Dokploy-powered VPS — deploy GitHub repos, create projects, apps, compose stacks, and databases (PostgreSQL, MySQL, MariaDB, Redis, MongoDB, LibSQL) with one command. Use when the user needs to deploy infrastructure, create databases, deploy from GitHub, or manage services on the VPS.
 ---
 
 # VPS CLI — Agent Skill
@@ -46,6 +46,50 @@ vps app start <appId> --json
 vps app stop <appId> --json
 vps app remove <appId> -y --json
 ```
+
+### Compose (docker-compose stacks)
+
+```bash
+vps compose list --json
+vps compose info <composeId> --json
+vps compose deploy <composeId> --json
+vps compose redeploy <composeId> --json
+vps compose start <composeId> --json
+vps compose stop <composeId> --json
+vps compose env <composeId> --set "KEY=value
+KEY2=value2" --json
+vps compose remove <composeId> -y --json
+vps compose remove <composeId> -y --delete-volumes --json
+```
+
+### GitHub (deploy repos)
+
+```bash
+# List connected GitHub accounts
+vps github list --json
+
+# List repos from a connected account
+vps github repos <githubId> --json
+
+# List branches
+vps github branches --owner <owner> --repo <repo> --json
+
+# Deploy as app (default): creates app + connects GitHub + sets build type + deploys
+vps github deploy <owner/repo> -e <environmentId> --json
+vps github deploy <owner/repo> -e <envId> --branch main --build-type nixpacks --json
+vps github deploy <owner/repo> -e <envId> --build-type dockerfile --dockerfile ./Dockerfile --json
+
+# Deploy as docker-compose: creates compose + connects GitHub + deploys
+vps github deploy <owner/repo> -e <environmentId> --compose --json
+vps github deploy <owner/repo> -e <envId> --compose --compose-path ./docker-compose.yaml --branch main --json
+```
+
+JSON output from `github deploy` (app): `applicationId`, `name`, `repository`, `branch`, `buildType`.
+JSON output from `github deploy --compose`: `composeId`, `name`, `repository`, `branch`, `composePath`.
+
+Options for `--build-type` (app only): `nixpacks` (default), `dockerfile`, `heroku_buildpacks`, `paketo_buildpacks`, `static`, `railpack`.
+
+If only one GitHub account is connected, `--github-id` is auto-detected. If multiple, pass `--github-id <id>`.
 
 ### PostgreSQL
 
@@ -154,6 +198,32 @@ ENV_ID=$(vps project info "$PROJECT" --json | jq -r '.environments[0].environmen
 vps pg create my-db -e "$ENV_ID" --json
 ```
 
+### Deploy a GitHub repo (app)
+
+```bash
+PROJECT=$(vps project create my-app --json | jq -r '.projectId')
+ENV_ID=$(vps project info "$PROJECT" --json | jq -r '.environments[0].environmentId')
+vps github deploy myorg/my-repo -e "$ENV_ID" --branch main --json
+```
+
+### Deploy a GitHub repo (docker-compose)
+
+```bash
+PROJECT=$(vps project create my-app --json | jq -r '.projectId')
+ENV_ID=$(vps project info "$PROJECT" --json | jq -r '.environments[0].environmentId')
+vps github deploy myorg/my-repo -e "$ENV_ID" --compose --json
+```
+
+### Deploy a GitHub repo with a database
+
+```bash
+PROJECT=$(vps project create my-stack --json | jq -r '.projectId')
+ENV_ID=$(vps project info "$PROJECT" --json | jq -r '.environments[0].environmentId')
+DB=$(vps pg create my-db -e "$ENV_ID" --json)
+vps github deploy myorg/my-api -e "$ENV_ID" --json
+echo "$DB" | jq -r '.connectionUrl'
+```
+
 ### Create a full stack (app + database)
 
 ```bash
@@ -170,3 +240,4 @@ echo "$DB" | jq -r '.connectionUrl'
 - Port range is 5433-5999. The CLI checks all existing databases to avoid collisions.
 - IDs that start with `-` need `--` before them: `vps pg remove -y --json -- -6bMBz...`
 - `--json` output goes to stdout, progress logs go to stderr.
+- Domains must be configured via the Dokploy dashboard or API (`domain.create`). The CLI does not yet have a `vps domain` command.

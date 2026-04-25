@@ -14,6 +14,8 @@ import { registerMongo } from "../src/commands/mongo.ts";
 import { registerMySQL } from "../src/commands/mysql.ts";
 import { registerMariaDB } from "../src/commands/mariadb.ts";
 import { registerLibSQL } from "../src/commands/libsql.ts";
+import { registerGitHub } from "../src/commands/github.ts";
+import { registerCompose } from "../src/commands/compose.ts";
 
 const program = new Command();
 
@@ -38,6 +40,8 @@ registerMongo(program);
 registerMySQL(program);
 registerMariaDB(program);
 registerLibSQL(program);
+registerGitHub(program);
+registerCompose(program);
 
 // Default action: show help
 program.action(() => {
