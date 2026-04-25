@@ -268,3 +268,17 @@ echo "$DB" | jq -r '.connectionUrl'
 - IDs that start with `-` need `--` before them: `vps pg remove -y --json -- -6bMBz...`
 - `--json` output goes to stdout, progress logs go to stderr.
 - Domains default to HTTPS with Let's Encrypt. Use `--no-https --cert none` for plain HTTP.
+- **Next.js / Node apps in docker-compose** must bind to `0.0.0.0`, not `localhost`. Always include these env vars in the service:
+  ```yaml
+  environment:
+    HOSTNAME: "0.0.0.0"
+    PORT: "3000"
+  ```
+  Without `HOSTNAME: "0.0.0.0"` the app only listens on 127.0.0.1 inside the container and Traefik will return 404.
+- **To add a subdomain on `crafter.run`**, first create the DNS record, then add the domain in Dokploy:
+  ```bash
+  # 1. Create DNS record (separate CLI)
+  crafters domain add <subdomain> --ip $(vps status --json | jq -r '.ip')
+  # 2. Add domain to the app/compose in Dokploy
+  vps domain add <subdomain>.crafter.run --app <appId> --port 3000 --json
+  ```
