@@ -19,6 +19,29 @@ bun link          # puts `vps` on your PATH
 
 Without `bun link`, substitute `bun run bin/vps.ts` for `vps` in every example below.
 
+### Install the agent skill
+
+`skills/vps/SKILL.md` teaches Claude Code to drive this CLI — the full command surface plus
+worked workflows. Symlink it so it tracks the repo:
+
+```sh
+mkdir -p ~/.claude/skills
+ln -s "$PWD/skills/vps" ~/.claude/skills/vps
+```
+
+Use `.claude/skills/vps` instead of `~/.claude/skills/vps` to scope it to one project rather
+than your whole account.
+
+Copy it if symlinks are awkward — Windows needs Developer Mode or an elevated shell for `ln -s`:
+
+```sh
+mkdir -p ~/.claude/skills/vps
+cp skills/vps/SKILL.md ~/.claude/skills/vps/SKILL.md
+```
+
+A copy goes stale when the CLI gains commands, so re-run that after pulling. Restart Claude
+Code to pick up a newly installed skill, then confirm it registered with `/skills`.
+
 ## Configure
 
 ```sh
@@ -135,8 +158,9 @@ vps pg remove -y -- -6bMBz9xK
 
 ## Agents
 
-`skills/vps/SKILL.md` is a Claude Code skill covering the full command surface with worked
-workflows. `AGENTS.md` documents the codebase itself for agents making changes to this repo.
+`skills/vps/SKILL.md` is the Claude Code skill for *using* the CLI — see
+[Install the agent skill](#install-the-agent-skill). `AGENTS.md` is for agents *changing*
+this repo: layout, Dokploy API conventions, and the gotchas worth knowing before you edit.
 
 ## Development
 
