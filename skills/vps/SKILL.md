@@ -47,6 +47,33 @@ vps app stop <appId> --json
 vps app remove <appId> -y --json
 ```
 
+### Logs
+
+```bash
+# Containers backing an app (running Docker containers)
+vps app containers <appId> --json
+vps app containers <appId> --history --json   # + shut-down Swarm tasks
+
+# Logs per container (default: every running container)
+vps app logs <appId> --json
+vps app logs <appId> -n 500 --json            # lines per container, 1-10000
+vps app logs <appId> --container <id> --json  # one container only
+vps app logs <appId> --since 15m --json       # all | 30s | 5m | 2h | 1d
+vps app logs <appId> --search "error" --json
+vps app logs <appId> --no-timestamps --json
+
+# Whole-service log, no per-container split (single REST call, faster)
+vps app logs <appId> --aggregate --json
+
+# Stream until Ctrl-C; --json emits NDJSON, one object per line
+vps app logs <appId> -f
+vps app logs <appId> -f --json | jq -r '.message'
+```
+
+Per-container logs come from Dokploy's `docker-container-logs` WebSocket, so
+`--since` and `--search` are applied client-side to the `--tail` window.
+`--aggregate` filters server-side but cannot attribute lines to a container.
+
 ### Domains
 
 ```bash

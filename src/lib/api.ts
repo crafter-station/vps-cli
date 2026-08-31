@@ -117,3 +117,40 @@ export async function findAvailablePort(): Promise<number> {
 	}
 	return available[Math.floor(Math.random() * available.length)]!;
 }
+
+export type AppContainer = {
+	containerId: string;
+	name: string;
+	state: string;
+};
+
+export type AppTask = {
+	containerId: string;
+	name: string;
+	state: string;
+	currentState: string;
+	node: string;
+	error: string;
+};
+
+/** Running Docker containers backing a Swarm application, keyed by its appName. */
+export async function getAppContainers(
+	appName: string,
+	serverId?: string | null,
+): Promise<AppContainer[]> {
+	const params: Record<string, string> = { appName, type: "swarm" };
+	if (serverId) params.serverId = serverId;
+	const data = await dokployGet<AppContainer[]>("docker.getContainersByAppLabel", params);
+	return data ?? [];
+}
+
+/** Swarm tasks for an application, including shut-down ones (deployment history). */
+export async function getAppTasks(
+	appName: string,
+	serverId?: string | null,
+): Promise<AppTask[]> {
+	const params: Record<string, string> = { appName };
+	if (serverId) params.serverId = serverId;
+	const data = await dokployGet<AppTask[]>("docker.getServiceContainersByAppName", params);
+	return data ?? [];
+}
