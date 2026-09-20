@@ -28,7 +28,10 @@ export class AppError extends Error {
 	}
 }
 
-const STATUS_MAP: Record<number, { code: string; human: string; hint?: string }> = {
+const STATUS_MAP: Record<
+	number,
+	{ code: string; human: string; hint?: string; exitCode?: number }
+> = {
 	401: {
 		code: "UNAUTHORIZED",
 		human: "Invalid or expired API key.",
@@ -61,7 +64,7 @@ export function fromHttpStatus(status: number, body?: string): AppError {
 		return new AppError(entry.code, {
 			human: entry.human,
 			hint: entry.hint,
-			exitCode: entry.code === "RATE_LIMIT" ? 4 : 1,
+			exitCode: entry.exitCode ?? 1,
 		});
 	}
 	return new AppError("HTTP_ERROR", {
