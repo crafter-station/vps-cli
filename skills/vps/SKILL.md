@@ -1,18 +1,61 @@
 ---
 name: vps
-description: Manage a Dokploy-powered VPS — deploy GitHub repos, create projects, apps, compose stacks, and databases (PostgreSQL, MySQL, MariaDB, Redis, MongoDB, LibSQL) with one command. Use when the user needs to deploy infrastructure, create databases, deploy from GitHub, or manage services on the VPS.
+description: Manage one or more Dokploy-powered VPSs — deploy GitHub repos, create projects, apps, compose stacks, and databases (PostgreSQL, MySQL, MariaDB, Redis, MongoDB, LibSQL) with one command. Each VPS is a named profile. Use when the user needs to deploy infrastructure, create databases, deploy from GitHub, switch between VPSs, or manage services on a VPS.
 ---
 
 # VPS CLI — Agent Skill
 
-CLI to manage a Dokploy-powered VPS. All commands support `--json` for machine-readable output and `-y` / `--yes` to skip confirmations.
+CLI to manage Dokploy-powered VPSs. All commands support `--json` for machine-readable output and `-y` / `--yes` to skip confirmations.
 
 **Always use `--json -y`** when running commands programmatically.
 
-## Setup
+## Profiles
+
+The CLI can point at several Dokploy instances. Each one is a **profile** stored in
+`~/.vps/config.json`; commands run against the active profile unless told otherwise.
+
+**Before doing anything else, confirm which VPS you are about to change:**
 
 ```bash
-vps config set --domain https://vps.crafter.run --api-key <KEY>
+vps config list --json    # every profile, "active": true marks the current one
+vps status --json         # the active profile plus its health, version, and IP
+```
+
+If the user names a VPS ("deploy to staging"), target it explicitly rather than switching
+globally — `--profile` works before or after the subcommand:
+
+```bash
+vps app list --profile staging --json
+vps --profile staging app list --json
+VPS_PROFILE=staging vps app list --json
+```
+
+Never assume a profile name. If more than one exists and the user has not said which, ask.
+
+### Managing profiles
+
+```bash
+vps config set --profile <name> --domain https://vps.example.com --api-key <KEY> --json
+vps config list --json
+vps config use <name> --json           # change the active profile
+vps config show [name] --json          # one profile (default: active)
+vps config show --all --json
+vps config rename <from> <to> --json
+vps config remove <name> -y --json
+vps config reset -y --json             # delete every profile
+```
+
+`config set` with `--profile <name>` on an existing profile patches only the fields you pass
+and switches to it; add `--no-use` to leave the active profile alone. A config written by an
+older version (a bare `{domain, apiKey}`) is migrated automatically into a profile named
+`default`.
+
+Two optional per-profile fields describe how DNS works for that VPS — see
+[Subdomains](#subdomains):
+
+```bash
+vps config set --profile <name> --base-domain example.com \
+  --dns-command "my-dns-cli add {subdomain} --ip {ip}" --json
 ```
 
 ## Quick Reference
@@ -22,6 +65,9 @@ vps config set --domain https://vps.crafter.run --api-key <KEY>
 ```bash
 vps status --json
 ```
+
+Returns `profile`, `domain`, `baseDomain`, `dnsCommand`, `health`, `version`, and `ip` — so one
+call tells you both which VPS you are on and how to point DNS at it.
 
 ### Projects
 
@@ -290,6 +336,11 @@ echo "$DB" | jq -r '.connectionUrl'
 
 ## Notes
 
+- **Every command runs against one profile.** IDs are not portable between VPSs — a projectId
+  from one profile is meaningless on another. When a command returns `NOT_FOUND` for an ID you
+  just saw, check you are on the same profile with `vps status --json`.
+- Pass `--profile <name>` on every command in a chain, or `vps config use <name>` once first.
+  Mixing the two inside one workflow is how resources end up on the wrong VPS.
 - All `create` database commands auto-generate passwords and pick available ports if not specified.
 - Port range is 5433-5999. The CLI checks all existing databases to avoid collisions.
 - IDs that start with `-` need `--` before them: `vps pg remove -y --json -- -6bMBz...`
@@ -302,10 +353,48 @@ echo "$DB" | jq -r '.connectionUrl'
     PORT: "3000"
   ```
   Without `HOSTNAME: "0.0.0.0"` the app only listens on 127.0.0.1 inside the container and Traefik will return 404.
-- **To add a subdomain on `crafter.run`**, first create the DNS record, then add the domain in Dokploy:
-  ```bash
-  # 1. Create DNS record (separate CLI)
-  crafters domain add <subdomain> --ip $(vps status --json | jq -r '.ip')
-  # 2. Add domain to the app/compose in Dokploy
-  vps domain add <subdomain>.crafter.run --app <appId> --port 3000 --json
-  ```
+
+## Subdomains
+
+Attaching a hostname is two steps: point DNS at the VPS, then register the domain in Dokploy.
+Only the second step belongs to this CLI — **how DNS is managed depends on which VPS the
+active profile points at**, so read it from the profile instead of assuming.
+
+```bash
+vps status --json
+# { "profile": "...", "baseDomain": "example.com",
+#   "dnsCommand": "my-dns-cli add {subdomain} --ip {ip}", "ip": "203.0.113.10", ... }
+```
+
+**If `dnsCommand` is set**, substitute the placeholders and run it, then add the domain:
+
+| Placeholder | Value |
+| --- | --- |
+| `{subdomain}` | the label alone, e.g. `api` |
+| `{baseDomain}` | the profile's `baseDomain`, e.g. `example.com` |
+| `{host}` | the full hostname, e.g. `api.example.com` |
+| `{ip}` | the VPS IP from `vps status` |
+
+```bash
+STATUS=$(vps status --json)
+IP=$(echo "$STATUS" | jq -r '.ip')
+BASE=$(echo "$STATUS" | jq -r '.baseDomain')
+
+# 1. DNS record — run the profile's own dnsCommand with the placeholders filled in
+my-dns-cli add api --ip "$IP"
+
+# 2. Register it in Dokploy
+vps domain add "api.$BASE" --app <appId> --port 3000 --json
+```
+
+**If `dnsCommand` is `null`**, this CLI cannot create the record. Ask the user to add an `A`
+record for the hostname pointing at the `ip` from `vps status`, wait for it to resolve, then
+run `vps domain add`. Do not invent a DNS command — one VPS's DNS tooling does not work for
+another.
+
+If the user keeps using the same DNS tool for a VPS, store it once so future sessions find it:
+
+```bash
+vps config set --profile <name> --base-domain example.com \
+  --dns-command "my-dns-cli add {subdomain} --ip {ip}" --json
+```

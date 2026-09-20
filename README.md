@@ -60,10 +60,67 @@ vps status
 
 ```
 VPS Status
+  Profile            default
+  Domain             https://your-vps.example.com
   Health             healthy
   Dokploy Version    v0.29.1
   IP                 203.0.113.10
 ```
+
+### More than one VPS
+
+Each Dokploy instance is a named **profile**. Add as many as you like; one is active at a
+time, and `--profile` overrides it for a single command.
+
+```sh
+vps config set --profile staging --domain https://vps2.example.com --api-key <KEY>
+vps config list
+```
+
+```
+VPS Profiles
+      Name        Domain                        API Key
+  ──────────────────────────────────────────────────────────
+      default     https://your-vps.example.com  aSpb..ubkD
+  *   staging     https://vps2.example.com      sk_t..7890
+```
+
+```sh
+vps app list --profile default      # one command against another VPS
+vps config use default              # change the active profile
+VPS_PROFILE=staging vps app list    # or set it for a whole shell
+```
+
+| Command | Effect |
+| --- | --- |
+| `vps config set --profile <name>` | Create a profile, or patch the fields you pass on an existing one |
+| `vps config list` | Every profile; `*` marks the active one |
+| `vps config use <name>` | Change the active profile |
+| `vps config show [name]` | One profile, or `--all` for every one |
+| `vps config rename <from> <to>` | Rename, keeping it active if it was |
+| `vps config remove <name>` | Delete one profile |
+| `vps config reset` | Delete every profile |
+
+`config set` switches to the profile it wrote; pass `--no-use` to leave the active one alone.
+A config from an earlier version — a bare `{"domain", "apiKey"}` — is migrated on first read
+into a profile named `default`, so nothing to do when upgrading.
+
+IDs do not cross profiles. A `projectId` from one VPS means nothing on another, so a
+surprising `NOT_FOUND` is usually the wrong profile rather than a deleted resource.
+
+#### DNS for subdomains
+
+Dokploy registers a hostname but cannot create the DNS record, and the tool that does differs
+per VPS. Two optional fields record that per profile, so scripts and agents stop guessing:
+
+```sh
+vps config set --profile default --base-domain example.com \
+  --dns-command "my-dns-cli add {subdomain} --ip {ip}"
+```
+
+`vps status --json` then reports `baseDomain` and `dnsCommand` alongside the server's `ip`.
+Placeholders in the template are `{subdomain}`, `{baseDomain}`, `{host}`, and `{ip}`. The CLI
+stores and reports the command — it never runs it.
 
 ## A first deploy
 
@@ -89,7 +146,7 @@ vps pg create my-db -e "$ENV" --json | jq -r '.connectionUrl'
 
 | Group | What it does |
 | --- | --- |
-| `vps config` | Store, show, and clear the domain + API key |
+| `vps config` | Profiles: one domain + API key per VPS |
 | `vps status` | Health, Dokploy version, and public IP |
 | `vps project` | Projects and their environments |
 | `vps app` | Application lifecycle, containers, and logs |
@@ -145,6 +202,7 @@ checking every existing database for collisions.
 | `-y, --yes` | Skip confirmation prompts (implied when `CI` is set) |
 | `-q, --quiet` | Suppress non-essential output |
 | `-v, --verbose` | Verbose logging |
+| `-p, --profile <name>` | Run against this profile instead of the active one (also `VPS_PROFILE`) |
 
 JSON goes to stdout and diagnostics to stderr, so `2>/dev/null` always leaves you with clean
 data. Errors in JSON mode are a single object — `{"ok": false, "code": "...", "error": "..."}` —

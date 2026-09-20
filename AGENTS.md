@@ -12,13 +12,13 @@ directly through Bun, and `.ts` files import each other with explicit `.ts` exte
 
 ```
 bin/vps.ts          Entry point: registers command groups, catches and renders errors
-src/constants.ts    VERSION, CLI_NAME, USER_AGENT, config paths
-src/types.ts        Config, GlobalFlags, OutputMode
+src/constants.ts    VERSION, CLI_NAME, USER_AGENT, config paths, DEFAULT_PROFILE
+src/types.ts        Profile, ConfigFile, ResolvedProfile, GlobalFlags, OutputMode
 src/cli/            Foundation, no API calls
-  config.ts           Read/write ~/.vps/config.json (0600)
+  config.ts           Profile store in ~/.vps/config.json (0600), legacy migration
   detect.ts           TTY + flags -> "json" | "human"
   error-map.ts        AppError, fromHttpStatus, mapError
-  global-flags.ts     Definitions and parsing for --json/--output/-q/-v/-y
+  global-flags.ts     Definitions and parsing for --json/--output/-q/-v/-y/-p
 src/lib/
   api.ts              dokployGet / dokployPost, plus cross-cutting helpers
   ws-logs.ts          docker-container-logs WebSocket client
@@ -28,6 +28,27 @@ src/commands/       One file per command group, each exporting register<Group>(p
 skills/vps/SKILL.md Agent-facing usage docs — update when commands change
 swagger.json        Dokploy OpenAPI dump (gitignored; regenerate from settings.getOpenApiDocument)
 ```
+
+## Profiles
+
+`~/.vps/config.json` holds every configured VPS:
+
+```json
+{ "version": 2, "current": "staging", "profiles": { "staging": { "domain": "...", "apiKey": "..." } } }
+```
+
+`loadConfig()` returns the active profile — `--profile`, then `VPS_PROFILE`, then the stored
+`current` — as a `ResolvedProfile` (the profile plus its `name`). Everything that talks to a
+VPS goes through it, so `api.ts` and `ws-logs.ts` need no profile awareness of their own.
+
+`readConfigFile()` upgrades the pre-0.2 `{domain, apiKey}` shape into a profile named
+`default` and writes the result back, so the migration runs once and silently. Keep that path:
+people upgrade without reading release notes.
+
+Two optional fields per profile, `baseDomain` and `dnsCommand`, describe how DNS records are
+created for that VPS. The CLI only stores them and reports them through `vps status --json`;
+it never executes `dnsCommand`. They exist so the agent skill can stop hardcoding one VPS's
+DNS tooling.
 
 ## The Dokploy API
 
@@ -44,8 +65,9 @@ tRPC-style endpoint names, not REST paths: `project.all`, `application.one`,
 `swagger.json` is gitignored but the fastest way to check an endpoint's real parameters:
 
 ```sh
-KEY=$(jq -r .apiKey ~/.vps/config.json)
-curl -s -H "x-api-key: $KEY" https://your-vps.example.com/api/settings.getOpenApiDocument > swagger.json
+KEY=$(jq -r '.profiles[.current].apiKey' ~/.vps/config.json)
+HOST=$(vps status --json | jq -r .domain)
+curl -s -H "x-api-key: $KEY" "$HOST/api/settings.getOpenApiDocument" > swagger.json
 node -e "const s=require('./swagger.json');
   console.log(JSON.stringify(s.paths['/application.readLogs'], null, 1))"
 ```
@@ -86,7 +108,9 @@ cmd
 Four things matter here:
 
 - **`optsWithGlobals()`**, not `opts()`, when reading global flags — otherwise `--json` placed
-  before the subcommand is silently ignored.
+  before the subcommand is silently ignored. The same applies to `--profile`, though commands
+  never read it: a `preAction` hook in `bin/vps.ts` feeds it to `setProfileOverride` before any
+  action runs, so `loadConfig()` resolves the right VPS on its own.
 - **`emit(value, flags, human)`** for every result. The JSON branch is the contract that
   scripts and agents depend on; the human callback runs only in a TTY.
 - **Throw `AppError`** for anything the user should read. `bin/vps.ts` catches it and renders
@@ -98,8 +122,7 @@ Four things matter here:
 ## Conventions
 
 - Biome, tabs, double quotes, 100 columns. `bun run check` must pass.
-- `bun run typecheck` has two pre-existing errors (`src/cli/error-map.ts:49`,
-  `src/commands/config.ts:32`). Don't add more; fixing them is welcome but out of band.
+- `bun run typecheck` is clean. Keep it that way.
 - `any` is used freely for API responses. That is deliberate — the Dokploy shapes are large and
   under-specified. Type the *outputs* you construct, not the payloads you receive.
 - JSON to stdout, diagnostics to stderr. Never `console.log` a progress message.
@@ -142,5 +165,7 @@ done.
   `docker.getContainersByAppLabel` (`type=swarm`) returns live Docker container IDs, which is
   what the log socket wants. `docker.getServiceContainersByAppName` returns Swarm *task* IDs —
   useful as deployment history, but not addressable for logs.
+- **IDs are scoped to a profile.** A `projectId` from one VPS is meaningless on another, so a
+  `NOT_FOUND` during testing is often the active profile rather than the endpoint.
 - **Signals don't cross Git Bash on Windows.** `timeout -s INT` cannot interrupt a Bun process
   there; test interrupt handling in a real terminal or by calling `stop()` from a harness.
