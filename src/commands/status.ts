@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { loadConfig } from "../cli/config.ts";
 import { parseGlobalFlags } from "../cli/global-flags.ts";
 import { dokployGet } from "../lib/api.ts";
 import { emit } from "./emit.ts";
@@ -10,6 +11,7 @@ export function registerStatus(program: Command): void {
 		.description("Check connectivity and server version")
 		.action(async function (this: Command) {
 			const flags = parseGlobalFlags(this.optsWithGlobals());
+			const profile = loadConfig();
 
 			const [healthRaw, versionRaw, ipRaw] = await Promise.all([
 				dokployGet<any>("settings.health").catch(() => "unreachable"),
@@ -29,6 +31,10 @@ export function registerStatus(program: Command): void {
 
 			const result = {
 				ok: health === "ok",
+				profile: profile.name,
+				domain: profile.domain,
+				baseDomain: profile.baseDomain ?? null,
+				dnsCommand: profile.dnsCommand ?? null,
 				health,
 				version,
 				ip,
@@ -36,6 +42,8 @@ export function registerStatus(program: Command): void {
 
 			emit(result, flags, () => {
 				ui.header("VPS Status");
+				ui.kv("Profile", result.profile);
+				ui.kv("Domain", result.domain);
 				ui.kv("Health", result.health === "ok" ? "healthy" : result.health);
 				ui.kv("Dokploy Version", result.version);
 				ui.kv("IP", result.ip);

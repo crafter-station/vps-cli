@@ -4,6 +4,7 @@ import { VERSION, CLI_NAME } from "../src/constants.ts";
 import { getGlobalFlagDefs, parseGlobalFlags } from "../src/cli/global-flags.ts";
 import { mapError } from "../src/cli/error-map.ts";
 import { detectMode } from "../src/cli/detect.ts";
+import { setProfileOverride } from "../src/cli/config.ts";
 import { registerConfig } from "../src/commands/config.ts";
 import { registerStatus } from "../src/commands/status.ts";
 import { registerProject } from "../src/commands/project.ts";
@@ -29,6 +30,12 @@ program
 for (const def of getGlobalFlagDefs()) {
 	program.option(def.flag, def.description);
 }
+
+// Resolve --profile before any action runs, so api.ts and ws-logs.ts see it.
+program.hook("preAction", (_thisCommand, actionCommand) => {
+	const flags = parseGlobalFlags(actionCommand.optsWithGlobals());
+	setProfileOverride(flags.profile);
+});
 
 // Register commands
 registerConfig(program);

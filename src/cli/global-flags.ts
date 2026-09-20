@@ -10,6 +10,10 @@ export function getGlobalFlagDefs() {
 		{ flag: "-q, --quiet", description: "Suppress non-essential output" },
 		{ flag: "-v, --verbose", description: "Verbose logging" },
 		{ flag: "-y, --yes", description: "Skip confirmation prompts" },
+		{
+			flag: "-p, --profile <name>",
+			description: "VPS profile to use (default: the active one)",
+		},
 	];
 }
 
@@ -23,5 +27,6 @@ export function parseGlobalFlags(raw: Record<string, unknown>): GlobalFlags {
 		quiet: raw.quiet === true,
 		verbose: raw.verbose === true,
 		yes: raw.yes === true || isCi,
+		profile: (raw.profile as string | undefined) || process.env.VPS_PROFILE || undefined,
 	};
 }
