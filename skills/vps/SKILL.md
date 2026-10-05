@@ -158,7 +158,12 @@ KEY2=value2" --json
 vps compose remove <composeId> -y --json
 vps compose remove <composeId> -y --delete-volumes --json
 vps compose services <composeId> --json       # list service names in the compose
+vps compose deployments <composeId> --json    # deployments, newest first, with status
+vps compose logs <composeId> --json           # build and deploy log of the latest deployment
+vps compose logs <composeId> --deployment <id> --tail 400 --json
 ```
+
+When a deploy ends in `error`, read its log with `compose logs` before rebuilding anything locally: the build output (a missing binary, a failed step) is in it.
 
 When adding domains to compose stacks, use `compose services` first to discover valid service names. The `domain add` command auto-detects the service if only one exists.
 

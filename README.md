@@ -151,7 +151,7 @@ vps pg create my-db -e "$ENV" --json | jq -r '.connectionUrl'
 | `vps project` | Projects and their environments |
 | `vps app` | Application lifecycle, containers, and logs |
 | `vps github` | Deploy a repo as an app or a compose stack |
-| `vps compose` | docker-compose stacks and their env vars |
+| `vps compose` | docker-compose stacks, their env vars, deployments and build logs |
 | `vps domain` | Attach hostnames to apps and compose services |
 | `vps pg` `mysql` `mariadb` `redis` `mongo` `libsql` | Databases |
 
