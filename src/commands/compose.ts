@@ -1,5 +1,6 @@
-import type { Command } from "commander";
 import { confirm } from "@clack/prompts";
+import type { Command } from "commander";
+import { AppError } from "../cli/error-map.ts";
 import { parseGlobalFlags } from "../cli/global-flags.ts";
 import { dokployGet, dokployPost } from "../lib/api.ts";
 import { emit } from "./emit.ts";
@@ -175,4 +176,93 @@ export function registerCompose(program: Command): void {
 				ui.success(`Compose ${composeId} removed.`);
 			});
 		});
+
+	// vps compose deployments <id>
+	cmd
+		.command("deployments <composeId>")
+		.description("List a compose stack's deployments, newest first")
+		.action(async function (this: Command, composeId: string) {
+			const flags = parseGlobalFlags(this.optsWithGlobals());
+			const deployments = (await composeDeployments(composeId)).map((d) => ({
+				id: d.deploymentId,
+				status: d.status,
+				created: d.createdAt,
+				title: firstLine(d.title),
+			}));
+
+			emit(deployments, flags, () => {
+				ui.header(`Deployments: ${composeId}`);
+				ui.table(deployments, [
+					{ key: "id", label: "ID", width: 24 },
+					{ key: "status", label: "Status", width: 8 },
+					{ key: "created", label: "Created", width: 26 },
+					{ key: "title", label: "Title", width: 50 },
+				]);
+				process.stdout.write("\n");
+			});
+		});
+
+	// vps compose logs <id>
+	cmd
+		.command("logs <composeId>")
+		.description("Show a deployment's build and deploy log (default: the latest)")
+		.option("--deployment <id>", "Deployment ID, or latest", "latest")
+		.option("--tail <n>", "Lines from the end, 1 to 10000", "200")
+		.action(async function (this: Command, composeId: string) {
+			const flags = parseGlobalFlags(this.optsWithGlobals());
+			const opts = this.opts();
+			const tail = Number(opts.tail);
+			if (!Number.isInteger(tail) || tail < 1 || tail > 10000) {
+				throw new AppError("INVALID_ARGUMENT", {
+					human: `--tail must be an integer from 1 to 10000, got "${opts.tail}".`,
+					exitCode: 2,
+				});
+			}
+			const deployments = await composeDeployments(composeId);
+			const deployment =
+				opts.deployment === "latest"
+					? deployments[0]
+					: deployments.find((d) => d.deploymentId === opts.deployment);
+			if (!deployment) {
+				throw new AppError("NOT_FOUND", {
+					human:
+						opts.deployment === "latest"
+							? `Compose ${composeId} has no deployments.`
+							: `No deployment ${opts.deployment} on compose ${composeId}.`,
+					hint: `List them with \`vps compose deployments ${composeId}\`.`,
+					exitCode: 4,
+				});
+			}
+			const log = await dokployGet<string>("deployment.readLogs", {
+				deploymentId: deployment.deploymentId,
+				tail: String(tail),
+			});
+
+			emit(
+				{
+					deploymentId: deployment.deploymentId,
+					status: deployment.status,
+					created: deployment.createdAt,
+					log,
+				},
+				flags,
+				() => {
+					ui.header(
+						`${deployment.status} · ${deployment.createdAt} · ${firstLine(deployment.title)}`,
+					);
+					process.stdout.write(log.endsWith("\n") || log === "" ? log : `${log}\n`);
+				},
+			);
+		});
+}
+
+type Deployment = { deploymentId: string; status: string; title: string; createdAt: string };
+
+async function composeDeployments(composeId: string): Promise<Deployment[]> {
+	const list = await dokployGet<Deployment[]>("deployment.allByCompose", { composeId });
+	return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function firstLine(text: string | null | undefined): string {
+	return (text ?? "").split("\n")[0] ?? "";
 }
