@@ -359,6 +359,46 @@ echo "$DB" | jq -r '.connectionUrl'
   ```
   Without `HOSTNAME: "0.0.0.0"` the app only listens on 127.0.0.1 inside the container and Traefik will return 404.
 
+## Scripts and migrations
+
+Moving an app to another VPS breaks things that kept working before. They don't fail with an error,
+they answer about the wrong system. Three cases from a real migration (a WhatsApp bot moved
+between Dokploy instances):
+
+**A script must never resolve its profile from `current`.** `current` belongs to whoever used
+the CLI last, on that machine. A project script had the old VPS's application id hard-coded
+**and** read `config.profiles[config.current]`, which on that machine was a VPS of an
+unrelated project. It answered "no scheduled task", which was literally true and meant nothing:
+it was asking about an application that doesn't exist, on someone else's VPS. The daily job was
+never created in production, and nobody noticed for a week. In scripts:
+
+- Take the target explicitly, with defaults written next to the code they belong to:
+  `node scripts/schedule.mjs --perfil=<profile> --app=<applicationId>`.
+- Look the profile up **by name** in `~/.vps/config.json` (`profiles[name]`), or pass
+  `--profile <name>` / `VPS_PROFILE=<name>` to every `vps` call.
+- If the profile isn't found, fail and **list the profiles that exist**. Never fall back
+  to the active one.
+- After a migration, grep the repo for the old application, compose and project ids. Each is
+  only meaningful on the profile that issued it.
+
+**A restored backup carries the old infrastructure's credentials.** The app stored its WhatsApp
+API session (id + API key) in a `settings` table row that **takes precedence over the
+environment variables** and isn't validated on read. After restoring the database on the new VPS, that row
+still held the previous provider's session. Every send failed with `401 Invalid API key`, and the
+user only saw "the bot doesn't answer". When migrating:
+
+- Audit config-in-database tables (`settings`, `config`, `integrations`, or whatever the app
+  keeps) **before** declaring the migration done. Any external-service id or key in them belongs to
+  the old setup until proven otherwise.
+- Prefer validating stored credentials when they're read (one cheap authenticated call) over
+  trusting them, or keep them out of the backup altogether.
+
+**Check what your local environment points at before measuring anything.** A local `.env` still
+pointing at the old database made the first diagnosis wrong: "37 documents, sources unchecked
+since 19/09" described the retired system, and the live one had 28 documents. Say which environment
+you measured in the report. Don't "fix" this by pointing local development at production. A
+`check:*` script run from there would then write to the client's live system.
+
 ## Subdomains
 
 Attaching a hostname is two steps: point DNS at the VPS, then register the domain in Dokploy.
